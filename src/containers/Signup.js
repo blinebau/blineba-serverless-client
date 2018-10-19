@@ -7,6 +7,7 @@ import {
 } from "react-bootstrap";
 import LoaderButton from "../components/LoaderButton";
 import "./Signup.css";
+import { Auth } from "aws-amplify";
 
 export default class Signup extends Component {
     constructor(props) {
@@ -20,6 +21,10 @@ export default class Signup extends Component {
             confirmationCode: "",
             newUser: null
         };
+
+        this.handleConfirmationSubmit = this.handleConfirmationSubmit.bind(this);
+        this.handleSubmit = this.handleSubmit.bind(this);
+        this.handleChange = this.handleChange.bind(this);
     }
 
     validateForm() {
@@ -47,13 +52,32 @@ export default class Signup extends Component {
             isLoading: true 
         });
 
-        this.setState({
-            newUser: "test"
-        })
+        try {
+            const newUser = await Auth.signUp({
+                username: this.state.email,
+                password: this.state.password
+            });
+            this.setState({
+                newUser
+            })
+        } catch(e) {
+            if(e.name === "UsernameExistsException") {
+                const newUser = Auth.resendSignUp(this.state.email);
+
+                this.setState({
+                    newUser
+                });
+
+                this.setState({
+                    isLoading: false
+                });
+            }
+            alert(e.message);
+        }
 
         this.setState({
             isLoading: false
-        })
+        });
     }
 
     async handleConfirmationSubmit(event) {
@@ -61,7 +85,20 @@ export default class Signup extends Component {
 
         this.setState({
             isLoading: true
-        })
+        });
+
+        try {
+            await Auth.confirmSignUp(this.state.email, this.state.confirmationCode);
+            await Auth.signIn(this.state.email, this.state.password);
+
+            this.props.userHasAuthenticated(true);
+            this.props.history.push("/");
+        } catch(e) {
+            alert(e.message);
+            this.setState({ 
+                isLoading: false 
+            });
+        }
     }
 
     renderConfirmation() {
